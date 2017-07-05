@@ -42,6 +42,9 @@ import java.util.regex.Pattern;
 
 import javax.activation.MimetypesFileTypeMap;
 
+import com.cml.netty.learn.handler.HandlerRequestAdapter;
+import com.cml.netty.learn.handler.HandlerRequestMapping;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
@@ -111,7 +114,14 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 	public static final String HTTP_DATE_GMT_TIMEZONE = "GMT";
 	public static final int HTTP_CACHE_SECONDS = 60;
 
-	private static final String BASE_FILE = "src/main/webapp";
+	private String basePath;
+	private HandlerRequestMapping mapping;
+
+	public HttpServerHandler(String basePath, HandlerRequestMapping mapping) {
+		super();
+		this.basePath = basePath;
+		this.mapping = mapping;
+	}
 
 	@Override
 	public void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
@@ -134,7 +144,7 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 
 		File file = new File(path);
 
-		System.out.println("requestUrl:" + file.getAbsolutePath());
+		System.out.println("requestUrl:" + file.getAbsolutePath() + ",uri:" + uri);
 
 		if (file.isHidden() || !file.exists()) {
 			sendError(ctx, NOT_FOUND);
@@ -153,6 +163,18 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 		if (!file.isFile()) {
 			sendError(ctx, FORBIDDEN);
 			return;
+		}
+
+		HandlerRequestAdapter adapter = mapping.mapping(uri);
+
+		System.out.println(uri + " find adapter :" + adapter);
+
+		if (adapter != null) {
+			if (!adapter.handle(ctx, request, file)) {
+				// TODO 跳转到处理失败页面
+			} else {
+				return;
+			}
 		}
 
 		// // Cache Validation
@@ -199,7 +221,8 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 			} else if (file.getName().endsWith("css")) {
 				response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/css");
 			} else if (file.getName().endsWith("js")) {
-//				response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/javascript; charset=utf-8");
+				// response.headers().set(HttpHeaderNames.CONTENT_TYPE,
+				// "application/javascript; charset=utf-8");
 				response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/javascript");
 			}
 			// setContentTypeHeader(response, file);
@@ -246,7 +269,7 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 
 	private static final Pattern INSECURE_URI = Pattern.compile(".*[<>&\"].*");
 
-	private static String sanitizeUri(String uri) {
+	private String sanitizeUri(String uri) {
 		// Decode the path.
 		try {
 			uri = URLDecoder.decode(uri, "UTF-8");
@@ -269,7 +292,7 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 		}
 
 		// Convert to absolute path.
-		return SystemPropertyUtil.get("user.dir") + File.separator + BASE_FILE + File.separator + uri;
+		return SystemPropertyUtil.get("user.dir") + File.separator + basePath + File.separator + uri;
 	}
 
 	private static final Pattern ALLOWED_FILE_NAME = Pattern.compile("[^-\\._]?[^<>&\\\"]*");

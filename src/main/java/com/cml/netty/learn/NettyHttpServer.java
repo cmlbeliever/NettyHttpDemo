@@ -1,5 +1,10 @@
 package com.cml.netty.learn;
 
+import com.cml.netty.learn.handler.DefaultHandlerRequestMapping;
+import com.cml.netty.learn.handler.HandlerRequestMapping;
+import com.cml.netty.learn.handler.IndexHandlerRequestAdapter;
+import com.cml.netty.learn.handler.StaticResourceHandlerRequestAdapter;
+
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
@@ -20,23 +25,23 @@ import io.netty.handler.stream.ChunkedWriteHandler;
  *
  */
 public class NettyHttpServer {
+	private static final String BASE_FILE = "src/main/webapp";
 
 	public void start(int port) throws Exception {
 		EventLoopGroup bossGroup = new NioEventLoopGroup();
 		EventLoopGroup workerGroup = new NioEventLoopGroup();
 		try {
 			ServerBootstrap b = new ServerBootstrap();
-			b.group(bossGroup, workerGroup).channel(NioServerSocketChannel.class)
-					.childHandler(new ChannelInitializer<SocketChannel>() {
-						@Override
-						public void initChannel(SocketChannel ch) throws Exception {
-							ChannelPipeline pipeline = ch.pipeline();
-							pipeline.addLast(new HttpServerCodec());
-							pipeline.addLast(new HttpObjectAggregator(65536));
-							pipeline.addLast(new ChunkedWriteHandler());
-							pipeline.addLast(new HttpServerHandler());
-						}
-					}).option(ChannelOption.SO_BACKLOG, 128).childOption(ChannelOption.SO_KEEPALIVE, true);
+			b.group(bossGroup, workerGroup).channel(NioServerSocketChannel.class).childHandler(new ChannelInitializer<SocketChannel>() {
+				@Override
+				public void initChannel(SocketChannel ch) throws Exception {
+					ChannelPipeline pipeline = ch.pipeline();
+					pipeline.addLast(new HttpServerCodec());
+					pipeline.addLast(new HttpObjectAggregator(65536));
+					pipeline.addLast(new ChunkedWriteHandler());
+					pipeline.addLast(new HttpServerHandler(BASE_FILE, registerMappings()));
+				}
+			}).option(ChannelOption.SO_BACKLOG, 128).childOption(ChannelOption.SO_KEEPALIVE, true);
 
 			ChannelFuture f = b.bind(port).sync();
 
@@ -47,6 +52,15 @@ public class NettyHttpServer {
 			workerGroup.shutdownGracefully();
 			bossGroup.shutdownGracefully();
 		}
+	}
+
+	static HandlerRequestMapping registerMappings() {
+		DefaultHandlerRequestMapping mapping = new DefaultHandlerRequestMapping();
+		mapping.register("/", new IndexHandlerRequestAdapter());
+		mapping.register("/js/.*\\.js", new StaticResourceHandlerRequestAdapter());
+		mapping.register("/css/.*\\.css", new StaticResourceHandlerRequestAdapter());
+		mapping.register(".*\\.html", new StaticResourceHandlerRequestAdapter());
+		return mapping;
 	}
 
 	public static void main(String[] args) throws Exception {
