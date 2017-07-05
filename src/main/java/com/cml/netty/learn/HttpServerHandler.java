@@ -141,8 +141,8 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 			sendError(ctx, FORBIDDEN);
 			return;
 		}
-		
-		//adapter处理
+
+		// adapter处理
 		File file = new File(path);
 		HandlerRequestAdapter adapter = mapping.mapping(uri);
 
@@ -152,8 +152,20 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 			if (!adapter.handle(ctx, request, file)) {
 				// TODO 跳转到处理失败页面
 			} else {
+				adapter = mapping.mapping(String.valueOf(HttpResponseStatus.NOT_FOUND));
+				System.out.println(uri + " error find adapter :" + adapter);
+				if (null != adapter) {
+					adapter.handle(ctx, request, null);
+				}
 				return;
 			}
+		}
+
+		adapter = mapping.mapping(String.valueOf(HttpResponseStatus.NOT_FOUND));
+		System.out.println(uri + " error find adapter :" + adapter);
+		if (null != adapter) {
+			adapter.handle(ctx, request, null);
+			return;
 		}
 
 		System.out.println("requestUrl:" + file.getAbsolutePath() + ",uri:" + uri);

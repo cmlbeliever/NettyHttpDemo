@@ -3,8 +3,8 @@ package com.cml.netty.learn;
 import java.io.File;
 
 import com.cml.netty.learn.handler.DefaultHandlerRequestMapping;
+import com.cml.netty.learn.handler.ErrorHandlerRequestAdapter;
 import com.cml.netty.learn.handler.HandlerRequestMapping;
-import com.cml.netty.learn.handler.IndexHandlerRequestAdapter;
 import com.cml.netty.learn.handler.StaticResourceHandlerRequestAdapter;
 
 import io.netty.bootstrap.ServerBootstrap;
@@ -17,6 +17,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.stream.ChunkedWriteHandler;
 
@@ -62,6 +63,8 @@ public class NettyHttpServer {
 		mapping.register("/js/.*\\.js", new StaticResourceHandlerRequestAdapter());
 		mapping.register("/css/.*\\.css", new StaticResourceHandlerRequestAdapter());
 		mapping.register(".*\\.html", new StaticResourceHandlerRequestAdapter());
+		mapping.register(String.valueOf(HttpResponseStatus.NOT_FOUND),
+				new ErrorHandlerRequestAdapter(new File(BASE_FILE, "404.html"), HttpResponseStatus.NOT_FOUND));
 		return mapping;
 	}
 
