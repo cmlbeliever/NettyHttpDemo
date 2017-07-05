@@ -134,7 +134,7 @@ public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<Ful
 
 		File file = new File(path);
 
-		System.out.println(file.getAbsolutePath() + ",path:" + path);
+		System.out.println("requestUrl:" + file.getAbsolutePath());
 
 		if (file.isHidden() || !file.exists()) {
 			sendError(ctx, NOT_FOUND);
@@ -155,22 +155,25 @@ public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<Ful
 			return;
 		}
 
-		// Cache Validation
-		String ifModifiedSince = request.headers().get(HttpHeaderNames.IF_MODIFIED_SINCE);
-		if (ifModifiedSince != null && !ifModifiedSince.isEmpty()) {
-			SimpleDateFormat dateFormatter = new SimpleDateFormat(HTTP_DATE_FORMAT, Locale.US);
-			Date ifModifiedSinceDate = dateFormatter.parse(ifModifiedSince);
-
-			// Only compare up to the second because the datetime format we send
-			// to the client
-			// does not have milliseconds
-			long ifModifiedSinceDateSeconds = ifModifiedSinceDate.getTime() / 1000;
-			long fileLastModifiedSeconds = file.lastModified() / 1000;
-			if (ifModifiedSinceDateSeconds == fileLastModifiedSeconds) {
-				sendNotModified(ctx);
-				return;
-			}
-		}
+		// // Cache Validation
+		// String ifModifiedSince =
+		// request.headers().get(HttpHeaderNames.IF_MODIFIED_SINCE);
+		// if (ifModifiedSince != null && !ifModifiedSince.isEmpty()) {
+		// SimpleDateFormat dateFormatter = new
+		// SimpleDateFormat(HTTP_DATE_FORMAT, Locale.US);
+		// Date ifModifiedSinceDate = dateFormatter.parse(ifModifiedSince);
+		//
+		// // Only compare up to the second because the datetime format we send
+		// // to the client
+		// // does not have milliseconds
+		// long ifModifiedSinceDateSeconds = ifModifiedSinceDate.getTime() /
+		// 1000;
+		// long fileLastModifiedSeconds = file.lastModified() / 1000;
+		// if (ifModifiedSinceDateSeconds == fileLastModifiedSeconds) {
+		// sendNotModified(ctx);
+		// return;
+		// }
+		// }
 
 		RandomAccessFile raf = null;
 		try {
@@ -180,14 +183,48 @@ public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<Ful
 			raf.getChannel().read(buffer);
 			FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK,
 					Unpooled.wrappedBuffer(buffer.array()));
-			response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/html");
-			response.headers().set(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());
+			String accept = request.headers().get(HttpHeaderNames.ACCEPT);
+			System.out.println(accept);
 			response.headers().set(HttpHeaderNames.CONTENT_ENCODING, "utf-8");
+			// response.headers().set(HttpHeaderNames.ACCEPT_CHARSET, "zh");
+
+			SimpleDateFormat dateFormatter = new SimpleDateFormat(HTTP_DATE_FORMAT, Locale.US);
+			dateFormatter.setTimeZone(TimeZone.getTimeZone(HTTP_DATE_GMT_TIMEZONE));
+			Calendar time = new GregorianCalendar();
+			response.headers().set(HttpHeaderNames.LAST_MODIFIED, dateFormatter.format(time.getTime()));
+			setDateHeader(response);
+
+			if (file.getName().endsWith("html")) {
+				response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/html");
+			} else if (file.getName().endsWith("css")) {
+				response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/css");
+			} else if (file.getName().endsWith("js")) {
+//				response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/javascript; charset=utf-8");
+				response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/javascript");
+			}
+			// setContentTypeHeader(response, file);
+			// if (file.getName().endsWith("js")) {
+			// setDateAndCacheHeaders(response, file);
+			// }
+
+			// if (accept.contains("text/html")) {
+			// response.headers().set(HttpHeaderNames.CONTENT_TYPE,
+			// "text/html");
+			// } else if (file.getName().endsWith("js")) {
+			// response.headers().set(HttpHeaderNames.CONTENT_TYPE,
+			// "application/javascript");
+			//// response.headers().set(HttpHeaderNames.CONTENT_ENCODING,
+			// "gzip");
+			// }
+			response.headers().set(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());
+
 			if (HttpUtil.isKeepAlive(request)) {
 				response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
 			}
+
 			// 输出并且关闭连接
-			ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+			ctx.writeAndFlush(response);
+			// .addListener(ChannelFutureListener.CLOSE);
 		} catch (FileNotFoundException ignore) {
 			sendError(ctx, NOT_FOUND);
 			return;
