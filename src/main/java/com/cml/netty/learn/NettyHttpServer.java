@@ -1,5 +1,7 @@
 package com.cml.netty.learn;
 
+import java.io.File;
+
 import com.cml.netty.learn.handler.DefaultHandlerRequestMapping;
 import com.cml.netty.learn.handler.HandlerRequestMapping;
 import com.cml.netty.learn.handler.IndexHandlerRequestAdapter;
@@ -56,7 +58,7 @@ public class NettyHttpServer {
 
 	static HandlerRequestMapping registerMappings() {
 		DefaultHandlerRequestMapping mapping = new DefaultHandlerRequestMapping();
-		mapping.register("/", new IndexHandlerRequestAdapter());
+		mapping.register("/", new StaticResourceHandlerRequestAdapter(new File(BASE_FILE, "Demo.html")));
 		mapping.register("/js/.*\\.js", new StaticResourceHandlerRequestAdapter());
 		mapping.register("/css/.*\\.css", new StaticResourceHandlerRequestAdapter());
 		mapping.register(".*\\.html", new StaticResourceHandlerRequestAdapter());

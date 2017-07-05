@@ -35,7 +35,10 @@ public class StaticResourceHandlerRequestAdapter implements HandlerRequestAdapte
 	}
 
 	@Override
-	public boolean handle(ChannelHandlerContext ctx, FullHttpRequest request, File file) {
+	public boolean handle(ChannelHandlerContext ctx, FullHttpRequest request, File target) {
+
+		File file = (null == defaultFile ? target : defaultFile);
+
 		RandomAccessFile raf = null;
 		try {
 			raf = new RandomAccessFile(file, "r");
