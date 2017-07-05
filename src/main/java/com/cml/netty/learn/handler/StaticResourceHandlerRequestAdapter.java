@@ -24,6 +24,16 @@ import io.netty.handler.codec.http.HttpVersion;
  */
 public class StaticResourceHandlerRequestAdapter implements HandlerRequestAdapter {
 
+	private File defaultFile;
+
+	public StaticResourceHandlerRequestAdapter(File defaultFile) {
+		super();
+		this.defaultFile = defaultFile;
+	}
+
+	public StaticResourceHandlerRequestAdapter() {
+	}
+
 	@Override
 	public boolean handle(ChannelHandlerContext ctx, FullHttpRequest request, File file) {
 		RandomAccessFile raf = null;
