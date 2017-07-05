@@ -105,7 +105,7 @@ import io.netty.util.internal.SystemPropertyUtil;
  *
  * </pre>
  */
-public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
+public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
 
 	public static final String HTTP_DATE_FORMAT = "EEE, dd MMM yyyy HH:mm:ss zzz";
 	public static final String HTTP_DATE_GMT_TIMEZONE = "GMT";
@@ -200,7 +200,7 @@ public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<Ful
 				response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/css");
 			} else if (file.getName().endsWith("js")) {
 //				response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/javascript; charset=utf-8");
-				response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/javascript");
+				response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/javascript");
 			}
 			// setContentTypeHeader(response, file);
 			// if (file.getName().endsWith("js")) {
