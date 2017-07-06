@@ -15,37 +15,23 @@
  */
 package com.cml.netty.learn;
 
-import static io.netty.handler.codec.http.HttpMethod.GET;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
-import static io.netty.handler.codec.http.HttpResponseStatus.FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
-import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_MODIFIED;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.RandomAccessFile;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
-import java.nio.ByteBuffer;
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.GregorianCalendar;
-import java.util.Locale;
-import java.util.TimeZone;
 import java.util.regex.Pattern;
 
-import javax.activation.MimetypesFileTypeMap;
-
+import com.cml.netty.learn.handler.DefaultViewResolver;
 import com.cml.netty.learn.handler.HandlerRequestAdapter;
 import com.cml.netty.learn.handler.HandlerRequestMapping;
+import com.cml.netty.learn.handler.ModelAndView;
+import com.cml.netty.learn.handler.ViewResolver;
+import com.cml.netty.learn.handler.exception.ResourceNotFundException;
 
-import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
@@ -54,11 +40,7 @@ import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpHeaderValues;
-import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpUtil;
-import io.netty.handler.codec.http.HttpVersion;
 import io.netty.util.CharsetUtil;
 import io.netty.util.internal.SystemPropertyUtil;
 
@@ -110,17 +92,15 @@ import io.netty.util.internal.SystemPropertyUtil;
  */
 public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
 
-	public static final String HTTP_DATE_FORMAT = "EEE, dd MMM yyyy HH:mm:ss zzz";
-	public static final String HTTP_DATE_GMT_TIMEZONE = "GMT";
-	public static final int HTTP_CACHE_SECONDS = 60;
-
 	private String basePath;
 	private HandlerRequestMapping mapping;
+	private ViewResolver viewResolver;
 
 	public HttpServerHandler(String basePath, HandlerRequestMapping mapping) {
 		super();
 		this.basePath = basePath;
 		this.mapping = mapping;
+		viewResolver = new DefaultViewResolver(basePath);
 	}
 
 	@Override
@@ -130,14 +110,6 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 			return;
 		}
 
-		// System.out.println("======>"+new
-		// String(request.content().copy().array()));
-
-		// if (request.method() != GET) {
-		// sendError(ctx, METHOD_NOT_ALLOWED);
-		// return;
-		// }
-
 		final String uri = request.uri();
 		final String path = sanitizeUri(uri);
 		if (path == null) {
@@ -146,132 +118,32 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 		}
 
 		// adapter处理
-		File file = new File(path);
-		HandlerRequestAdapter adapter = mapping.mapping(uri);
+		HandlerRequestAdapter adapter;
+		try {
+			adapter = mapping.mapping(uri);
 
-		System.out.println(uri + " find adapter :" + adapter);
+			System.out.println(uri + " find adapter :" + adapter);
 
-		if (adapter != null) {
-			if (!adapter.handle(ctx, request, file)) {
-				// TODO 跳转到处理失败页面
-			} else {
-				adapter = mapping.mapping(String.valueOf(HttpResponseStatus.NOT_FOUND));
-				System.out.println(uri + " error find adapter :" + adapter);
-				if (null != adapter) {
-					adapter.handle(ctx, request, null);
+			if (adapter != null) {
+				ModelAndView view = adapter.handle(ctx, request, path);
+				if (null != view) {
+					viewResolver.resolve(ctx, request, HttpResponseStatus.OK, view);
 				}
 				return;
 			}
-		}
-
-		adapter = mapping.mapping(String.valueOf(HttpResponseStatus.NOT_FOUND));
-		System.out.println(uri + " error find adapter :" + adapter);
-		if (null != adapter) {
-			adapter.handle(ctx, request, null);
-			return;
-		}
-
-		System.out.println("requestUrl:" + file.getAbsolutePath() + ",uri:" + uri);
-
-		if (file.isHidden() || !file.exists()) {
-			sendError(ctx, NOT_FOUND);
-			return;
-		}
-
-		if (file.isDirectory()) {
-			if (uri.endsWith("/")) {
-				sendListing(ctx, file, uri);
+		} catch (ResourceNotFundException e) {
+			adapter = mapping.mapping(String.valueOf(HttpResponseStatus.NOT_FOUND));
+			if (null != adapter) {
+				ModelAndView view = adapter.handle(ctx, request, path);
+				if (null != view) {
+					viewResolver.resolve(ctx, request, HttpResponseStatus.OK, view);
+				}
 			} else {
-				sendRedirect(ctx, uri + '/');
+				throw e;
 			}
-			return;
+		} catch (Exception e) {
+			throw e;
 		}
-
-		if (!file.isFile()) {
-			sendError(ctx, FORBIDDEN);
-			return;
-		}
-
-		// // Cache Validation
-		// String ifModifiedSince =
-		// request.headers().get(HttpHeaderNames.IF_MODIFIED_SINCE);
-		// if (ifModifiedSince != null && !ifModifiedSince.isEmpty()) {
-		// SimpleDateFormat dateFormatter = new
-		// SimpleDateFormat(HTTP_DATE_FORMAT, Locale.US);
-		// Date ifModifiedSinceDate = dateFormatter.parse(ifModifiedSince);
-		//
-		// // Only compare up to the second because the datetime format we send
-		// // to the client
-		// // does not have milliseconds
-		// long ifModifiedSinceDateSeconds = ifModifiedSinceDate.getTime() /
-		// 1000;
-		// long fileLastModifiedSeconds = file.lastModified() / 1000;
-		// if (ifModifiedSinceDateSeconds == fileLastModifiedSeconds) {
-		// sendNotModified(ctx);
-		// return;
-		// }
-		// }
-
-		RandomAccessFile raf = null;
-		try {
-			raf = new RandomAccessFile(file, "r");
-			Long fileLength = raf.length();
-			ByteBuffer buffer = ByteBuffer.allocate(fileLength.intValue());
-			raf.getChannel().read(buffer);
-			FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK,
-					Unpooled.wrappedBuffer(buffer.array()));
-			String accept = request.headers().get(HttpHeaderNames.ACCEPT);
-			System.out.println(accept);
-			response.headers().set(HttpHeaderNames.CONTENT_ENCODING, "utf-8");
-			// response.headers().set(HttpHeaderNames.ACCEPT_CHARSET, "zh");
-
-			SimpleDateFormat dateFormatter = new SimpleDateFormat(HTTP_DATE_FORMAT, Locale.US);
-			dateFormatter.setTimeZone(TimeZone.getTimeZone(HTTP_DATE_GMT_TIMEZONE));
-			Calendar time = new GregorianCalendar();
-			response.headers().set(HttpHeaderNames.LAST_MODIFIED, dateFormatter.format(time.getTime()));
-			setDateHeader(response);
-
-			if (file.getName().endsWith("html")) {
-				response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/html");
-			} else if (file.getName().endsWith("css")) {
-				response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/css");
-			} else if (file.getName().endsWith("js")) {
-				// response.headers().set(HttpHeaderNames.CONTENT_TYPE,
-				// "application/javascript; charset=utf-8");
-				response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/javascript");
-			}
-			// setContentTypeHeader(response, file);
-			// if (file.getName().endsWith("js")) {
-			// setDateAndCacheHeaders(response, file);
-			// }
-
-			// if (accept.contains("text/html")) {
-			// response.headers().set(HttpHeaderNames.CONTENT_TYPE,
-			// "text/html");
-			// } else if (file.getName().endsWith("js")) {
-			// response.headers().set(HttpHeaderNames.CONTENT_TYPE,
-			// "application/javascript");
-			//// response.headers().set(HttpHeaderNames.CONTENT_ENCODING,
-			// "gzip");
-			// }
-			response.headers().set(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());
-
-			if (HttpUtil.isKeepAlive(request)) {
-				response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
-			}
-
-			// 输出并且关闭连接
-			ctx.writeAndFlush(response);
-			// .addListener(ChannelFutureListener.CLOSE);
-		} catch (FileNotFoundException ignore) {
-			sendError(ctx, NOT_FOUND);
-			return;
-		} finally {
-			if (null != raf) {
-				raf.close();
-			}
-		}
-
 	}
 
 	@Override
@@ -310,48 +182,6 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 		return SystemPropertyUtil.get("user.dir") + File.separator + basePath + File.separator + uri;
 	}
 
-	private static final Pattern ALLOWED_FILE_NAME = Pattern.compile("[^-\\._]?[^<>&\\\"]*");
-
-	private static void sendListing(ChannelHandlerContext ctx, File dir, String dirPath) {
-		FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, OK);
-		response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/html; charset=UTF-8");
-
-		StringBuilder buf = new StringBuilder().append("<!DOCTYPE html>\r\n").append("<html><head><meta charset='utf-8' /><title>")
-				.append("Listing of: ").append(dirPath).append("</title></head><body>\r\n")
-
-				.append("<h3>Listing of: ").append(dirPath).append("</h3>\r\n")
-
-				.append("<ul>").append("<li><a href=\"../\">..</a></li>\r\n");
-
-		for (File f : dir.listFiles()) {
-			if (f.isHidden() || !f.canRead()) {
-				continue;
-			}
-
-			String name = f.getName();
-			if (!ALLOWED_FILE_NAME.matcher(name).matches()) {
-				continue;
-			}
-
-			buf.append("<li><a href=\"").append(name).append("\">").append(name).append("</a></li>\r\n");
-		}
-
-		buf.append("</ul></body></html>\r\n");
-		ByteBuf buffer = Unpooled.copiedBuffer(buf, CharsetUtil.UTF_8);
-		response.content().writeBytes(buffer);
-		buffer.release();
-
-		// Close the connection as soon as the error message is sent.
-		ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
-	}
-
-	private static void sendRedirect(ChannelHandlerContext ctx, String newUri) {
-		FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, FOUND);
-		response.headers().set(HttpHeaderNames.LOCATION, newUri);
-
-		// Close the connection as soon as the error message is sent.
-		ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
-	}
 
 	private static void sendError(ChannelHandlerContext ctx, HttpResponseStatus status) {
 		FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, status,
@@ -362,68 +192,4 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 		ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
 	}
 
-	/**
-	 * When file timestamp is the same as what the browser is sending up, send a
-	 * "304 Not Modified"
-	 *
-	 * @param ctx
-	 *            Context
-	 */
-	private static void sendNotModified(ChannelHandlerContext ctx) {
-		FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, NOT_MODIFIED);
-		setDateHeader(response);
-
-		// Close the connection as soon as the error message is sent.
-		ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
-	}
-
-	/**
-	 * Sets the Date header for the HTTP response
-	 *
-	 * @param response
-	 *            HTTP response
-	 */
-	private static void setDateHeader(FullHttpResponse response) {
-		SimpleDateFormat dateFormatter = new SimpleDateFormat(HTTP_DATE_FORMAT, Locale.US);
-		dateFormatter.setTimeZone(TimeZone.getTimeZone(HTTP_DATE_GMT_TIMEZONE));
-
-		Calendar time = new GregorianCalendar();
-		response.headers().set(HttpHeaderNames.DATE, dateFormatter.format(time.getTime()));
-	}
-
-	/**
-	 * Sets the Date and Cache headers for the HTTP Response
-	 *
-	 * @param response
-	 *            HTTP response
-	 * @param fileToCache
-	 *            file to extract content type
-	 */
-	private static void setDateAndCacheHeaders(HttpResponse response, File fileToCache) {
-		SimpleDateFormat dateFormatter = new SimpleDateFormat(HTTP_DATE_FORMAT, Locale.US);
-		dateFormatter.setTimeZone(TimeZone.getTimeZone(HTTP_DATE_GMT_TIMEZONE));
-
-		// Date header
-		Calendar time = new GregorianCalendar();
-		response.headers().set(HttpHeaderNames.DATE, dateFormatter.format(time.getTime()));
-
-		// Add cache headers
-		time.add(Calendar.SECOND, HTTP_CACHE_SECONDS);
-		response.headers().set(HttpHeaderNames.EXPIRES, dateFormatter.format(time.getTime()));
-		response.headers().set(HttpHeaderNames.CACHE_CONTROL, "private, max-age=" + HTTP_CACHE_SECONDS);
-		response.headers().set(HttpHeaderNames.LAST_MODIFIED, dateFormatter.format(new Date(fileToCache.lastModified())));
-	}
-
-	/**
-	 * Sets the content type header for the HTTP Response
-	 *
-	 * @param response
-	 *            HTTP response
-	 * @param file
-	 *            file to extract content type
-	 */
-	private static void setContentTypeHeader(HttpResponse response, File file) {
-		MimetypesFileTypeMap mimeTypesMap = new MimetypesFileTypeMap();
-		response.headers().set(HttpHeaderNames.CONTENT_TYPE, mimeTypesMap.getContentType(file.getPath()));
-	}
 }

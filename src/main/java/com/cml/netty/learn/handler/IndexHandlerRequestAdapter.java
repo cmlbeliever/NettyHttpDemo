@@ -9,9 +9,9 @@ public class IndexHandlerRequestAdapter implements HandlerRequestAdapter {
 
 
 	@Override
-	public boolean handle(ChannelHandlerContext ctx, FullHttpRequest request, File target) {
+	public ModelAndView handle(ChannelHandlerContext ctx, FullHttpRequest request, String path) {
 		// TODO Auto-generated method stub
-		return false;
+		return null;
 	}
 
 }
