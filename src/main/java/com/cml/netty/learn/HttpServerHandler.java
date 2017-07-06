@@ -130,10 +130,13 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 			return;
 		}
 
-		if (request.method() != GET) {
-			sendError(ctx, METHOD_NOT_ALLOWED);
-			return;
-		}
+		// System.out.println("======>"+new
+		// String(request.content().copy().array()));
+
+		// if (request.method() != GET) {
+		// sendError(ctx, METHOD_NOT_ALLOWED);
+		// return;
+		// }
 
 		final String uri = request.uri();
 		final String path = sanitizeUri(uri);
