@@ -1,5 +1,6 @@
 package com.cml.netty.learn;
 
+import com.cml.netty.learn.form.LoginHandler;
 import com.cml.netty.learn.handler.DefaultHandlerRequestMapping;
 import com.cml.netty.learn.handler.HandlerRequestMapping;
 import com.cml.netty.learn.handler.StaticResourceHandlerRequestAdapter;
@@ -57,6 +58,7 @@ public class NettyHttpServer {
 	static HandlerRequestMapping registerMappings() {
 		DefaultHandlerRequestMapping mapping = new DefaultHandlerRequestMapping();
 		mapping.register("/", new StaticResourceHandlerRequestAdapter("Demo.html"));
+		mapping.register("/login", new LoginHandler());
 		mapping.register("/js/.*\\.js", new StaticResourceHandlerRequestAdapter());
 		mapping.register("/css/.*\\.css", new StaticResourceHandlerRequestAdapter());
 		mapping.register(".*\\.html", new StaticResourceHandlerRequestAdapter());

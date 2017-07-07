@@ -1,5 +1,8 @@
 package com.cml.netty.learn.handler;
 
+import static io.netty.handler.codec.http.HttpResponseStatus.FOUND;
+import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -16,6 +19,7 @@ import javax.activation.MimetypesFileTypeMap;
 import com.cml.netty.learn.handler.exception.ResourceNotFundException;
 
 import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -28,10 +32,12 @@ import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 
 public class DefaultViewResolver implements ViewResolver {
-	
+
 	public static final String HTTP_DATE_FORMAT = "EEE, dd MMM yyyy HH:mm:ss zzz";
 	public static final String HTTP_DATE_GMT_TIMEZONE = "GMT";
 	public static final int HTTP_CACHE_SECONDS = 60;
+
+	private static final String REDIRECT_PREFIX = "redirect:";
 
 	private String basePath;
 
@@ -43,8 +49,21 @@ public class DefaultViewResolver implements ViewResolver {
 	@Override
 	public void resolve(ChannelHandlerContext ctx, FullHttpRequest request, HttpResponseStatus status, ModelAndView model) throws Exception {
 
+		System.out.println("view resolver 处理url:" + model.getView());
+		// 重定向
+		if (model.getView().startsWith(REDIRECT_PREFIX)) {
+			String path = model.getView().substring(REDIRECT_PREFIX.length());
+			FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, FOUND);
+			response.headers().set(HttpHeaderNames.LOCATION, path);
+
+			// Close the connection as soon as the error message is sent.
+			ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+			return;
+		}
+
 		RandomAccessFile raf = null;
 		try {
+
 			File file = new File(basePath, model.getView());
 
 			if (file.isHidden() || !file.exists()) {
@@ -85,7 +104,6 @@ public class DefaultViewResolver implements ViewResolver {
 		}
 
 	}
-	
 
 	/**
 	 * Sets the Date header for the HTTP response

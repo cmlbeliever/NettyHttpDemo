@@ -111,11 +111,6 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 		}
 
 		final String uri = request.uri();
-		final String path = sanitizeUri(uri);
-		if (path == null) {
-			sendError(ctx, FORBIDDEN);
-			return;
-		}
 
 		// adapter处理
 		HandlerRequestAdapter adapter;
@@ -125,7 +120,7 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 			System.out.println(uri + " find adapter :" + adapter);
 
 			if (adapter != null) {
-				ModelAndView view = adapter.handle(ctx, request, path);
+				ModelAndView view = adapter.handle(ctx, request, uri);
 				if (null != view) {
 					viewResolver.resolve(ctx, request, HttpResponseStatus.OK, view);
 				}
@@ -134,7 +129,7 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 		} catch (ResourceNotFundException e) {
 			adapter = mapping.mapping(String.valueOf(HttpResponseStatus.NOT_FOUND));
 			if (null != adapter) {
-				ModelAndView view = adapter.handle(ctx, request, path);
+				ModelAndView view = adapter.handle(ctx, request, uri);
 				if (null != view) {
 					viewResolver.resolve(ctx, request, HttpResponseStatus.OK, view);
 				}
@@ -181,7 +176,6 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 		// Convert to absolute path.
 		return SystemPropertyUtil.get("user.dir") + File.separator + basePath + File.separator + uri;
 	}
-
 
 	private static void sendError(ChannelHandlerContext ctx, HttpResponseStatus status) {
 		FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, status,

@@ -23,6 +23,7 @@ public class StaticResourceHandlerRequestAdapter implements HandlerRequestAdapte
 
 	@Override
 	public ModelAndView handle(ChannelHandlerContext ctx, FullHttpRequest request, String path) {
+		System.out.println("path===>" + path);
 		return new ModelAndView(null == defaultView ? path : defaultView);
 	}
 
