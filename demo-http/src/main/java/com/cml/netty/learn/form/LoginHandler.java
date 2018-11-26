@@ -1,15 +1,14 @@
 package com.cml.netty.learn.form;
 
-import java.util.List;
-import java.util.Map;
-
 import com.cml.netty.learn.handler.HandlerRequestAdapter;
 import com.cml.netty.learn.handler.ModelAndView;
-
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.QueryStringDecoder;
+
+import java.util.List;
+import java.util.Map;
 
 public class LoginHandler implements HandlerRequestAdapter {
 

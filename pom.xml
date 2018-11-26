@@ -3,8 +3,14 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.cml.netty.learn</groupId>
 	<artifactId>NettyHtttpDemo</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<properties>
+    <packaging>pom</packaging>
+    <version>0.0.1-SNAPSHOT</version>
+    <modules>
+        <module>demo-client</module>
+		<module>demo-server</module>
+        <module>demo-http</module>
+    </modules>
+    <properties>
 		<maven.compiler.encoding>UTF-8</maven.compiler.encoding>
 		<maven.compiler.target>1.8</maven.compiler.target>
 		<maven.compiler.source>1.8</maven.compiler.source>

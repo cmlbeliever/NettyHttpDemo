@@ -5,5 +5,5 @@ import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 public interface ViewResolver {
-	void resolve(ChannelHandlerContext ctx,FullHttpRequest request,HttpResponseStatus status,  ModelAndView model) throws Exception;
+	void resolve(ChannelHandlerContext ctx, FullHttpRequest request, HttpResponseStatus status, ModelAndView model) throws Exception;
 }
