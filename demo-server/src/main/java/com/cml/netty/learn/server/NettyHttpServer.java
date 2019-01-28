@@ -9,6 +9,7 @@ import io.netty.handler.codec.DelimiterBasedFrameDecoder;
 import io.netty.handler.codec.Delimiters;
 import io.netty.handler.codec.string.StringDecoder;
 import io.netty.handler.codec.string.StringEncoder;
+import sun.misc.Signal;
 
 /**
  * 服务器入口
@@ -20,28 +21,28 @@ public class NettyHttpServer {
     public void start(int port) throws Exception {
         EventLoopGroup bossGroup = new NioEventLoopGroup();
         EventLoopGroup workerGroup = new NioEventLoopGroup();
-        try {
-            ServerBootstrap b = new ServerBootstrap();
-            b.group(bossGroup, workerGroup).channel(NioServerSocketChannel.class).childHandler(new ChannelInitializer<SocketChannel>() {
-                @Override
-                public void initChannel(SocketChannel ch) throws Exception {
-                    ChannelPipeline pipeline = ch.pipeline();
-                    pipeline.addLast("framer", new DelimiterBasedFrameDecoder(2014, Delimiters.lineDelimiter()));
-                    pipeline.addLast("stringDecoder", new StringDecoder());
-                    pipeline.addLast("stringEncoder", new StringEncoder());
-                    pipeline.addLast("handler", new ServerHandler());
-                }
-            }).option(ChannelOption.SO_BACKLOG, 128).childOption(ChannelOption.SO_KEEPALIVE, true);
 
-            ChannelFuture f = b.bind(port).sync();
+        ServerBootstrap b = new ServerBootstrap();
+        b.group(bossGroup, workerGroup).channel(NioServerSocketChannel.class).childHandler(new ChannelInitializer<SocketChannel>() {
+            @Override
+            public void initChannel(SocketChannel ch) throws Exception {
+                ChannelPipeline pipeline = ch.pipeline();
+                pipeline.addLast("framer", new DelimiterBasedFrameDecoder(2014, Delimiters.lineDelimiter()));
+                pipeline.addLast("stringDecoder", new StringDecoder());
+                pipeline.addLast("stringEncoder", new StringEncoder());
+                pipeline.addLast("handler", new ServerHandler());
+            }
+        }).option(ChannelOption.SO_BACKLOG, 128).childOption(ChannelOption.SO_KEEPALIVE, true);
 
-            System.out.println("server started.....");
+        ChannelFuture f = b.bind(port).sync();
 
-            f.channel().closeFuture().sync();
-        } finally {
+        System.out.println("server started.....");
+
+        //优化为
+        f.channel().closeFuture().addListener(t -> {
             workerGroup.shutdownGracefully();
             bossGroup.shutdownGracefully();
-        }
+        });
     }
 
     public static void main(String[] args) throws Exception {
